@@ -1,6 +1,8 @@
-# Release V1.261 - KaraokVSFlow
+# Release V1.261
 
-Release publishing details:
-- Tag: V1.261
-- Title: KaraokVSFlow
-- Notes: Static Netlify build included; SPA redirects and Netlify CI added.
+Published: Yes
+
+Notes:
+- Static Netlify build available at Netlify's deploy once release triggers CI
+- SPA routing support via `_redirects`
+- release created by automation
