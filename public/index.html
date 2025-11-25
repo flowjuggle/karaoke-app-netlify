@@ -1,0 +1,48 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Karaoke App</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div id="app">
+      <header>
+        <h1>Karaoke App</h1>
+      </header>
+
+      <div class="controls">
+        <label>Playlist ID (optional): <input id="playlistId" placeholder="Enter YouTube playlist id or leave blank for sample"/></label>
+        <button id="loadPlaylist">Load Playlist</button>
+      </div>
+
+      <section id="playerArea">
+        <div id="player"></div>
+        <div class="snippet-controls">
+          <label>Start (s): <input id="snippetStart" type="number" min="0" value="0"/></label>
+          <label>Length (s): <input id="snippetLength" type="number" min="1" value="30"/></label>
+          <button id="previewSnippet">Preview</button>
+          <button id="saveSnippet">Save</button>
+        </div>
+      </section>
+
+      <section id="playlist">
+        <h2>Playlist</h2>
+        <div id="playlistItems"></div>
+      </section>
+
+      <section id="lyricsEditor">
+        <h3>Lyrics & LRC</h3>
+        <textarea id="lyrics" placeholder="Paste LRC or lyrics here" rows="8"></textarea>
+      </section>
+
+      <footer>
+        <small>Runs without a YOUTUBE_API_KEY using a sample playlist. Provide a YT API key in .env to enable playlist fetch.</small>
+      </footer>
+
+      <script src="https://www.youtube.com/iframe_api"></script>
+      <script src="/app.js"></script>
+    </div>
+  </body>
+</html>

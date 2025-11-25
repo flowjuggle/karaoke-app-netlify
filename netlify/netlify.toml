@@ -1,0 +1,9 @@
+[build]
+  publish = "./"
+  command = ""
+
+[[redirects]]
+  from = "/api/*"
+  to = "/"  # static-mode: redirect API calls to root (no-op)
+  status = 200
+  force = false
