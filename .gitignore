@@ -1,0 +1,5 @@
+node_modules/
+.env
+data/karaoke.db
+.DS_Store
+npm-debug.log
