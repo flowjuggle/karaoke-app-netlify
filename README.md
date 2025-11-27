@@ -62,6 +62,18 @@ node scripts/test-api.js
 
 Enjoy 🎤
 
+## Karaoke ingestion & processing pipeline
+
+- Read the end-to-end pipeline design in [`docs/karaoke-pipeline.md`](docs/karaoke-pipeline.md) for architecture, QA gates, and rights compliance.
+- A Python helper script lives at [`scripts/karaoke_pipeline.py`](scripts/karaoke_pipeline.py) to fetch playlist metadata, filter by duration/vocals, pick the best 40–60 second window, loudness-normalize, run Demucs separation, compute loop points, and persist metadata. Example usage:
+
+```bash
+python scripts/karaoke_pipeline.py "https://www.youtube.com/playlist?list=PL2vNBvHyEXihiuQ2htu6rLcOjw7lzsKcD" \
+  --output ./data/pipeline_output --target-count 10 --vocal-threshold 0.4
+```
+
+The script respects rights by skipping uploads unless `license_state` is set to `cleared`.
+
 ## Netlify (Static) Build
 
 If you'd like a static-only deploy (no server), the `netlify/` folder contains a build that uses localStorage for metadata and works without a backend. To deploy it to Netlify:
