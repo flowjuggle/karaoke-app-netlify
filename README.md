@@ -1,75 +1,82 @@
-# Karaoke App (local)
+# Karaoke App
 
-A simple karaoke app built with Node.js + Express and a YouTube IFrame frontend. It supports saving snippet metadata in SQLite and works without a YouTube API key using a fallback sample playlist.
+A lightweight karaoke web app paired with a production-ready ingestion, looping, and rights-aware pipeline for building a short-segment karaoke catalog from YouTube.
 
-## Setup (Windows PowerShell)
+## Quick start (app)
+1. Install Node.js 18+ and Git.
+2. Install dependencies and run the server:
+   ```bash
+   npm install
+   npm run dev
+   ```
+3. Open http://localhost:3000 and load a playlist. Set snippet start/length, preview loops, and save metadata to the local SQLite DB (`./data/karaoke.db`).
 
-1. Install Node (v18+ recommended) and Git: https://nodejs.org
-
-2. Install dependencies and run dev server
-
-```powershell
-cd "C:\Users\marti\Documents\Vis Code Flow MK\karaoke-app"
-npm install
-npm run dev
-```
-
-3. Open your browser to http://localhost:3000
-
-## Docker
-
-Build and run the containerized app:
-
-```powershell
+### Docker
+```bash
 # Build
 docker build -t karaoke-app .
 
-# Run with env file (create a .env from .env.example if needed)
+# Run with env file (create .env from .env.example if needed)
 docker run -p 3000:3000 --env-file .env karaoke-app
-```
 
-Or use docker-compose:
-
-```powershell
+# Or compose
 docker-compose up --build
 ```
 
-## Environment
+### Environment
+- `YOUTUBE_API_KEY` — optional; fetches playlist items via YouTube Data API. Without it, the server uses a fallback sample playlist.
+- `ADMIN_TOKEN` — optional admin endpoints token.
+- `PORT` — defaults to `3000`.
 
-- `YOUTUBE_API_KEY` — optional. If present, the server will fetch playlist items using the YouTube Data API. If not, the app uses a small sample playlist.
-- `ADMIN_TOKEN` — optional token used for admin endpoints in future.
-- `PORT` — optional server port (defaults to 3000).
-
-## Testing
-
-A simple API smoke test is provided in `scripts/test-api.js`. Start the server locally and run:
-
-```powershell
+### Testing
+A smoke test exists in `scripts/test-api.js`. Start the server, then run:
+```bash
 node scripts/test-api.js
 ```
 
-## Usage
+## Production ingestion + loop pipeline
+Use the new Python automation at `scripts/karaoke_pipeline.py` to ingest the playlist `https://www.youtube.com/playlist?list=PL2vNBvHyEXihiuQ2htu6rLcOjw7lzsKcD` into a legally gated, loop-ready catalog.
 
-- Load a playlist by ID or leave empty to get the sample playlist.
-- Click a song's Play or Edit to load it into the player.
-- Set the snippet start and length, then click Preview to play the loop.
-- Click Save to store snippet metadata and lyrics in the local SQLite DB (`./data/karaoke.db`).
+**What it does**
+- Fetches playlist metadata via `yt-dlp` (no YouTube API key required).
+- Enforces duration ≥ 40s and a vocal-presence score threshold to reject instrumentals.
+- Downloads audio, finds the best 40–60s vocal-rich window (favoring choruses), and computes seamless loop points with crossfade buffers.
+- Loudness-normalizes to -14 LUFS and extracts a loop-ready WAV segment.
+- Runs Demucs two-stem separation to produce a karaoke bed and isolated vocals; separation quality can be extended with SDR/SIR checks.
+- Writes per-track segment metadata (loop offsets, BPM, key, vocal score), rights metadata (distribution blocked until cleared), and upload hooks for storage.
 
-## Notes
-
-- If you run on Windows and `better-sqlite3` fails to build, use Docker to avoid build problems or install 
-  Visual Studio Build Tools first.
-
-Enjoy 🎤
-
-## Netlify (Static) Build
-
-If you'd like a static-only deploy (no server), the `netlify/` folder contains a build that uses localStorage for metadata and works without a backend. To deploy it to Netlify:
-
-1. Run the build step (optional copy helper):
-```powershell
-npm run build:netlify
+**Install dependencies (Python 3.10+)**
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r scripts/requirements-karaoke.txt
 ```
-2. Open https://app.netlify.com/sites/new and use the drag-and-drop deploy option to upload the files inside the `netlify/` folder (not the folder itself).
 
-The static build stores song metadata in localStorage; use the Export/Import buttons to backup or restore user data.
+**Run the pipeline**
+```bash
+python scripts/karaoke_pipeline.py \
+  --playlist https://www.youtube.com/playlist?list=PL2vNBvHyEXihiuQ2htu6rLcOjw7lzsKcD \
+  --workdir output \
+  --limit 25 \
+  --score-threshold 0.2
+```
+Outputs (all inside `output/`):
+- `raw/` — downloaded WAVs.
+- `segments/` — loop-ready, normalized 40–60s clips.
+- `separation/` — Demucs stems (`vocals.wav`, `no_vocals.wav`).
+- `metadata/` — segment metadata JSON, rights metadata JSON, QA targets.
+
+**Rights & compliance**
+- Distribution is blocked until a license state is marked cleared in `*_rights.json`.
+- Each track records provenance (YouTube ID, uploader, license string) and the reason for any rejection (duration, vocal score, pending clearance).
+- Intended catalog size is 100–800 tracks (200 default target) after manual clearance; do **not** distribute audio until rights are cleared.
+
+**Adaptive lyric sync**
+- Pair forced alignment (MFA/Gentle) with beat tracking (`librosa.beat.beat_track`) and store timestamps alongside tempo maps.
+- Runtime warp should adjust timestamps for ±10% tempo and ±2 semitone pitch shifts, keeping ≤100 ms sync error during looping.
+
+## Architecture
+A detailed architecture, service breakdown, QA gates, and milestone alignment are documented in `docs/ARCHITECTURE.md` (includes a Mermaid diagram). The flow covers ingestion, rights management, audio processing/separation, lyric alignment, storage/CDN, and client playback across web and mobile.
+
+## Netlify static build
+The `netlify/` folder contains a static-only build that stores metadata in `localStorage`. Deploy by running `npm run build:netlify` and uploading the folder’s contents to Netlify.
