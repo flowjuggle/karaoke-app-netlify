@@ -1,0 +1,9 @@
+yt-dlp
+librosa
+soundfile
+numpy
+scipy
+torch
+museval
+demucs
+pydub
