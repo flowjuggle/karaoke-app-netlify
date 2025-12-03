@@ -23,35 +23,70 @@ const SAMPLE_PLAYLIST = [
   { videoId: 'ktvTqknDobU', title: 'In the End - Linkin Park' }
 ];
 
+function clampSongTarget(target) {
+  const min = 100;
+  const max = 800;
+  if (Number.isNaN(target)) return min;
+  return Math.min(Math.max(target, min), max);
+}
+
+function extractPlaylistId(rawValue) {
+  if (!rawValue) return '';
+  if (rawValue.includes('list=')) {
+    const match = rawValue.match(/[?&]list=([^&#]+)/);
+    return match ? decodeURIComponent(match[1]) : rawValue.trim();
+  }
+  return rawValue.trim();
+}
+
 // Helper to fetch playlist items, using YouTube Data API if API key exists
-async function fetchPlaylistItemsFromYouTube(playlistId) {
+async function fetchPlaylistItemsFromYouTube(playlistId, targetCount) {
   const apiKey = process.env.YOUTUBE_API_KEY;
   if (!apiKey) {
     return SAMPLE_PLAYLIST;
   }
 
-  // For simplicity, only get first 50 items
-  const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&maxResults=50&playlistId=${encodeURIComponent(
-    playlistId
-  )}&key=${apiKey}`;
+  const items = [];
+  let pageToken = '';
 
-  const resp = await axios.get(url);
-  return resp.data.items.map((it) => ({
-    videoId: it.contentDetails.videoId,
-    title: it.snippet.title,
-  }));
+  while (items.length < targetCount) {
+    const url =
+      'https://www.googleapis.com/youtube/v3/playlistItems' +
+      `?part=snippet,contentDetails&maxResults=50&playlistId=${encodeURIComponent(playlistId)}` +
+      (pageToken ? `&pageToken=${pageToken}` : '') +
+      `&key=${apiKey}`;
+
+    const resp = await axios.get(url);
+    const mapped = resp.data.items.map((it) => ({
+      videoId: it.contentDetails.videoId,
+      title: it.snippet.title,
+      position: it.snippet.position,
+    }));
+
+    items.push(...mapped);
+
+    if (!resp.data.nextPageToken || items.length >= targetCount) {
+      break;
+    }
+    pageToken = resp.data.nextPageToken;
+  }
+
+  return items.slice(0, targetCount);
 }
 
 // API: GET playlist
 app.get('/api/playlist', async (req, res) => {
   try {
-    const playlistId = req.query.playlistId;
-    if (!playlistId) {
-      // If no playlistId, return sample fallback
-      return res.json({ playlistId: 'SAMPLE', items: SAMPLE_PLAYLIST });
+    const requestedPlaylist = extractPlaylistId(req.query.playlistId || req.query.playlistUrl || '');
+    const targetCount = clampSongTarget(Number(req.query.maxSongs));
+    const usingSample = !process.env.YOUTUBE_API_KEY;
+
+    if (!requestedPlaylist) {
+      return res.json({ playlistId: 'SAMPLE', items: SAMPLE_PLAYLIST, requested: 0, targetCount: SAMPLE_PLAYLIST.length, fallback: true });
     }
-    const items = await fetchPlaylistItemsFromYouTube(playlistId);
-    res.json({ playlistId, items });
+
+    const items = await fetchPlaylistItemsFromYouTube(requestedPlaylist, targetCount);
+    res.json({ playlistId: requestedPlaylist, items, requested: targetCount, count: items.length, fallback: usingSample });
   } catch (err) {
     console.error('Failed to fetch playlist', err.message);
     res.status(500).json({ error: 'Failed to fetch playlist' });
