@@ -4,25 +4,43 @@ let playlist = [];
 let snippetStart = 0;
 let snippetLength = 30;
 let loopInterval = null;
+let loopActive = false;
+let loopMode = 'snippet';
 
 function byId(id) { return document.getElementById(id) }
 
 // Load playlist items from server
 async function loadPlaylist(playlistId) {
-  const query = playlistId ? `?playlistId=${encodeURIComponent(playlistId)}` : '';
-  const resp = await fetch(`/api/playlist${query}`);
+  const maxSongs = Number(byId('maxSongs').value) || 100;
+  const params = new URLSearchParams();
+  if (playlistId) params.append('playlistId', playlistId);
+  params.append('maxSongs', maxSongs);
+
+  const resp = await fetch(`/api/playlist?${params.toString()}`);
   const json = await resp.json();
   playlist = json.items;
   renderPlaylist();
+  const status = byId('playlistStatus');
+  if (json.error) {
+    status.textContent = 'Failed to load playlist';
+  } else {
+    const totalTarget = json.requested || playlist.length;
+    status.textContent = `Loaded ${playlist.length}/${totalTarget} songs from ${json.playlistId}`;
+    if (json.fallback) {
+      status.textContent += ' (using offline-safe sample until a YouTube API key is set).';
+    }
+  }
 }
 
 function renderPlaylist() {
   const container = byId('playlistItems');
   container.innerHTML = '';
+  byId('playlistCount').textContent = playlist.length;
   playlist.forEach(item => {
     const el = document.createElement('div');
     el.classList.add('song');
-    el.innerHTML = `<div class="title">${item.title}</div><div class="actions"><button data-id="${item.videoId}" class="play">Play</button> <button data-id="${item.videoId}" class="edit">Edit</button></div>`;
+    const label = item.position !== undefined ? `#${item.position + 1} · ` : '';
+    el.innerHTML = `<div class="title">${label}${item.title}</div><div class="actions"><button data-id="${item.videoId}" class="play">Play</button> <button data-id="${item.videoId}" class="edit">Edit</button></div>`;
     container.appendChild(el);
   });
 }
@@ -30,6 +48,7 @@ function renderPlaylist() {
 // When you click Play on a song
 async function playSong(videoId) {
   currentVideoId = videoId;
+  stopLoop();
   snippetStart = Number(byId('snippetStart').value || 0);
   snippetLength = Number(byId('snippetLength').value || 30);
   ytPlayer.loadVideoById(videoId, snippetStart);
@@ -38,11 +57,8 @@ async function playSong(videoId) {
 // Preview snippet with looping
 function previewSnippet() {
   if (!currentVideoId) return alert('Pick a song first');
-  stopLoop();
-  ytPlayer.loadVideoById(currentVideoId, snippetStart);
-  loopInterval = setInterval(() => {
-    ytPlayer.seekTo(snippetStart);
-  }, snippetLength * 1000);
+  loopMode = byId('loopMode').value;
+  startLoop();
 }
 
 function stopLoop() {
@@ -50,6 +66,26 @@ function stopLoop() {
     clearInterval(loopInterval);
     loopInterval = null;
   }
+  loopActive = false;
+}
+
+function startLoop() {
+  stopLoop();
+  loopActive = true;
+  if (loopMode === 'full') {
+    ytPlayer.loadVideoById(currentVideoId, 0);
+    return;
+  }
+
+  ytPlayer.loadVideoById(currentVideoId, snippetStart);
+  loopInterval = setInterval(() => {
+    if (!ytPlayer || !ytPlayer.getCurrentTime) return;
+    const currentTime = ytPlayer.getCurrentTime();
+    if (currentTime >= snippetStart + snippetLength) {
+      ytPlayer.seekTo(snippetStart, true);
+      ytPlayer.playVideo();
+    }
+  }, 300);
 }
 
 // Save snippet to server
@@ -80,7 +116,16 @@ function onPlayerReady(event) {
 }
 
 function onPlayerStateChange(event) {
-  // if playing after end of snippet, loop
+  if (!loopActive || !ytPlayer) return;
+  if (event.data === YT.PlayerState.ENDED) {
+    if (loopMode === 'full') {
+      ytPlayer.seekTo(0, true);
+      ytPlayer.playVideo();
+    } else {
+      ytPlayer.seekTo(snippetStart, true);
+      ytPlayer.playVideo();
+    }
+  }
 }
 
 // UI wiring
@@ -124,6 +169,10 @@ function wireUI() {
     previewSnippet();
   });
 
+  byId('stopLoop').addEventListener('click', () => {
+    stopLoop();
+  });
+
   byId('saveSnippet').addEventListener('click', () => {
     snippetStart = Number(byId('snippetStart').value);
     snippetLength = Number(byId('snippetLength').value);
@@ -135,7 +184,9 @@ function wireUI() {
     if (!ytPlayer || !ytPlayer.getPlayerState) return;
     const state = ytPlayer.getPlayerState();
     if (state === YT.PlayerState.PAUSED || state === YT.PlayerState.ENDED) {
-      stopLoop();
+      if (!loopActive) {
+        stopLoop();
+      }
     }
   }, 500);
 }
@@ -143,5 +194,5 @@ function wireUI() {
 // Init on DOM ready
 window.addEventListener('DOMContentLoaded', async () => {
   wireUI();
-  await loadPlaylist(''); // load sample playlist
+  await loadPlaylist(byId('playlistId').value.trim());
 });

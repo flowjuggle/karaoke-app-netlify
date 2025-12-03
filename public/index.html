@@ -9,26 +9,53 @@
   <body>
     <div id="app">
       <header>
-        <h1>Karaoke App</h1>
+        <h1>Loop-ready Karaoke</h1>
+        <p class="tagline">Load 100–800 tracks from a playlist, loop short hooks, and sing along.</p>
       </header>
 
       <div class="controls">
-        <label>Playlist ID (optional): <input id="playlistId" placeholder="Enter YouTube playlist id or leave blank for sample"/></label>
-        <button id="loadPlaylist">Load Playlist</button>
+        <div class="control-row">
+          <label class="full-width">Playlist URL or ID (optional):
+            <input id="playlistId" placeholder="Paste a YouTube playlist URL (shorts-friendly) or leave blank for sample" value="https://www.youtube.com/playlist?list=PL2vNBvHyEXihiuQ2htu6rLcOjw7lzsKcD" />
+          </label>
+        </div>
+        <div class="control-row">
+          <label>Max songs (100-800): <input id="maxSongs" type="number" min="100" max="800" value="150" /></label>
+          <button id="loadPlaylist">Load Playlist</button>
+          <div id="playlistStatus" aria-live="polite"></div>
+        </div>
       </div>
 
       <section id="playerArea">
         <div id="player"></div>
         <div class="snippet-controls">
-          <label>Start (s): <input id="snippetStart" type="number" min="0" value="0"/></label>
-          <label>Length (s): <input id="snippetLength" type="number" min="1" value="30"/></label>
-          <button id="previewSnippet">Preview</button>
-          <button id="saveSnippet">Save</button>
+          <div class="grid">
+            <label>Start (s): <input id="snippetStart" type="number" min="0" value="0"/></label>
+            <label>Length (s): <input id="snippetLength" type="number" min="1" value="30"/></label>
+            <label>Loop mode:
+              <select id="loopMode">
+                <option value="snippet">Loop snippet</option>
+                <option value="full">Loop full track</option>
+              </select>
+            </label>
+          </div>
+          <div class="actions">
+            <button id="previewSnippet">Start loop</button>
+            <button id="stopLoop">Stop loop</button>
+            <button id="saveSnippet">Save snippet + lyrics</button>
+          </div>
+          <p class="hint">Tip: start with short hooks, then switch to full-track loop for background backing.</p>
         </div>
       </section>
 
       <section id="playlist">
-        <h2>Playlist</h2>
+        <div class="playlist-header">
+          <div>
+            <h2>Playlist</h2>
+            <p class="hint">Loads shorts-friendly tracks in order; click Play to jump in.</p>
+          </div>
+          <div class="count">Loaded: <span id="playlistCount">0</span></div>
+        </div>
         <div id="playlistItems"></div>
       </section>
 
